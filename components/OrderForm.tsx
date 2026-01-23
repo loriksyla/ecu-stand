@@ -93,67 +93,62 @@ const OrderForm: React.FC<OrderFormProps> = ({ onClose }) => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus('submitting');
+  e.preventDefault();
+  setStatus("submitting");
+
+  try {
+    const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+    const url = `${base}/api/order`;
+
+    const orderPayload = {
+      ...formData,
+      phoneNumber: `${phonePrefix} ${formData.phoneNumber}`,
+    };
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: orderPayload }),
+    });
+
+    const raw = await resp.text();
+    let data: any = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = {};
+    }
+
+    if (!resp.ok) throw new Error(data?.error || `API error (${resp.status})`);
+
+    const newOrder: any = {
+      ...orderPayload,
+      id: (data?.orderId || Math.random().toString(36).slice(2, 11).toUpperCase()).toString(),
+      date: data?.createdAt || new Date().toISOString(),
+      status: "Pending",
+    };
 
     try {
-      // Use same-origin by default (best when frontend+backend are hosted together)
-      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-      const url = `${base}/api/order`;
-
-      const orderPayload = {
-        ...formData,
-        phoneNumber: `${phonePrefix} ${formData.phoneNumber}`,
-      };
-
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: orderPayload }),
-      });
-
-      // SAFELY parse response even if it's not JSON
-      const raw = await resp.text();
-      let data: any = {};
+      const existingRaw = localStorage.getItem("ecu_orders");
+      let existing: any[] = [];
       try {
-        data = raw ? JSON.parse(raw) : {};
+        existing = existingRaw ? JSON.parse(existingRaw) : [];
+        if (!Array.isArray(existing)) existing = [];
       } catch {
-        data = {};
+        existing = [];
       }
-
-      if (!resp.ok) {
-        throw new Error(data?.error || `API error (${resp.status})`);
-      }
-
-      const newOrder: Order = {
-        ...orderPayload,
-        id: (data?.orderId || Math.random().toString(36).slice(2, 11).toUpperCase()).toString(),
-        date: data?.createdAt || new Date().toISOString(),
-        status: 'Pending',
-      };
-
-      // Save to localStorage safely (never block success UI if storage has issues)
-      try {
-        const existingRaw = localStorage.getItem('ecu_orders');
-        let existingOrders: Order[] = [];
-        try {
-          existingOrders = existingRaw ? JSON.parse(existingRaw) : [];
-          if (!Array.isArray(existingOrders)) existingOrders = [];
-        } catch {
-          existingOrders = [];
-        }
-
-        localStorage.setItem('ecu_orders', JSON.stringify([newOrder, ...existingOrders]));
-      } catch {
-        // ignore localStorage failures
-      }
-
-      setStatus('success');
-    } catch (err) {
-      console.error(err);
-      setStatus('error');
+      localStorage.setItem("ecu_orders", JSON.stringify([newOrder, ...existing]));
+    } catch {
+      // ignore localStorage issues
     }
-  };
+
+    setStatus("success");
+  } catch (err) {
+    console.error(err);
+    setStatus("error");
+  }
+};
+
       const resp = await fetch(`${apiUrl}/api/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
