@@ -92,85 +92,60 @@ const OrderForm: React.FC<OrderFormProps> = ({ onClose }) => {
     }
   };
 
+  // ✅ FIXED: single submit handler (no duplicate broken code below)
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setStatus("submitting");
-
-  try {
-    const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-    const url = `${base}/api/order`;
-
-    const orderPayload = {
-      ...formData,
-      phoneNumber: `${phonePrefix} ${formData.phoneNumber}`,
-    };
-
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order: orderPayload }),
-    });
-
-    const raw = await resp.text();
-    let data: any = {};
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = {};
-    }
-
-    if (!resp.ok) throw new Error(data?.error || `API error (${resp.status})`);
-
-    const newOrder: any = {
-      ...orderPayload,
-      id: (data?.orderId || Math.random().toString(36).slice(2, 11).toUpperCase()).toString(),
-      date: data?.createdAt || new Date().toISOString(),
-      status: "Pending",
-    };
+    e.preventDefault();
+    setStatus('submitting');
 
     try {
-      const existingRaw = localStorage.getItem("ecu_orders");
-      let existing: any[] = [];
-      try {
-        existing = existingRaw ? JSON.parse(existingRaw) : [];
-        if (!Array.isArray(existing)) existing = [];
-      } catch {
-        existing = [];
-      }
-      localStorage.setItem("ecu_orders", JSON.stringify([newOrder, ...existing]));
-    } catch {
-      // ignore localStorage issues
-    }
+      const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const url = `${apiUrl}/api/order`;
 
-    setStatus("success");
-  } catch (err) {
-    console.error(err);
-    setStatus("error");
-  }
-};
-
-      const resp = await fetch(`${apiUrl}/api/order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: orderPayload })
-      });
-
-      if (!resp.ok) throw new Error('API error');
-      const data = await resp.json();
-
-      // 2) Also save locally so your Admin Panel continues to work
-      const newOrder: Order = {
-        ...orderPayload,
-        id: (data?.orderId || Math.random().toString(36).substr(2, 9).toUpperCase()).toString(),
-        date: data?.createdAt || new Date().toISOString(),
-        status: 'Pending'
+      const orderPayload = {
+        ...formData,
+        phoneNumber: `${phonePrefix} ${formData.phoneNumber}`,
       };
 
-      const existingOrders = JSON.parse(localStorage.getItem('ecu_orders') || '[]');
-      localStorage.setItem('ecu_orders', JSON.stringify([newOrder, ...existingOrders]));
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: orderPayload }),
+      });
+
+      // Safe parsing (works even if server returns non-JSON)
+      const raw = await resp.text();
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {}
+
+      if (!resp.ok) throw new Error(data?.error || `API error (${resp.status})`);
+
+      // Save locally so your Admin Panel continues to work (same browser/device)
+      const newOrder: Order = {
+        ...(orderPayload as any),
+        id: (data?.orderId || Math.random().toString(36).slice(2, 11).toUpperCase()).toString(),
+        date: data?.createdAt || new Date().toISOString(),
+        status: 'Pending',
+      };
+
+      try {
+        const existingRaw = localStorage.getItem('ecu_orders');
+        let existingOrders: Order[] = [];
+        try {
+          const parsed = existingRaw ? JSON.parse(existingRaw) : [];
+          existingOrders = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          existingOrders = [];
+        }
+        localStorage.setItem('ecu_orders', JSON.stringify([newOrder, ...existingOrders]));
+      } catch {
+        // ignore storage issues
+      }
 
       setStatus('success');
     } catch (err) {
+      console.error(err);
       setStatus('error');
     }
   };
